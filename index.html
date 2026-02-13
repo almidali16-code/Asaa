@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>AL-MAYDALI_VOID_PROTOCOL_V3</title>
+    <style>
+        :root { --neon: #00ff41; --danger: #8b0000; --dead: #333; }
+        body, html { 
+            margin: 0; padding: 0; background: #000; color: var(--neon); 
+            font-family: 'Courier New', monospace; overflow: hidden; height: 100vh;
+            user-select: none;
+        }
+
+        #entity {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://i.imgur.com/vH07v9j.jpg') center/cover;
+            z-index: 1; opacity: 0; pointer-events: none;
+            filter: contrast(300%) grayscale(1);
+            transition: opacity 3s ease-in-out;
+        }
+
+        .noise {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: url('https://media.giphy.com/media/oEI9uWUznW3pS/giphy.gif');
+            opacity: 0.08; pointer-events: none; z-index: 2;
+        }
+
+        canvas { position: fixed; top: 0; left: 0; z-index: 0; opacity: 0.15; }
+
+        .wrapper {
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; width: 100vw; position: relative; z-index: 10;
+        }
+
+        /* تأثير نبض الواجهة */
+        .terminal {
+            width: 85%; max-width: 650px; background: rgba(0, 0, 0, 0.95);
+            border: 2px solid var(--neon); padding: 35px;
+            box-shadow: 0 0 100px rgba(0, 255, 65, 0.05);
+            position: relative; animation: breathe 5s infinite ease-in-out;
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 50px rgba(0, 255, 65, 0.05); }
+            50% { transform: scale(1.01); box-shadow: 0 0 80px rgba(0, 255, 65, 0.15); }
+        }
+
+        .scary-text {
+            color: var(--danger); font-size: 14px; margin-bottom: 15px;
+            text-shadow: 0 0 10px var(--danger); animation: flicker 0.1s infinite;
+        }
+
+        input {
+            width: 100%; background: #050505; border: 1px solid var(--neon);
+            color: #fff; padding: 15px; font-size: 18px; outline: none;
+            margin-bottom: 15px; text-align: center;
+        }
+
+        button {
+            padding: 15px; border: 1px solid var(--neon); background: #000;
+            color: var(--neon); cursor: pointer; width: 100%;
+            font-weight: bold; transition: 0.3s;
+        }
+
+        button:hover { background: var(--danger); color: #fff; }
+
+        #timer { font-size: 45px; color: var(--danger); margin: 10px 0; font-weight: 900; }
+
+        #death-screen {
+            position: fixed; top:0; left:0; width:100%; height:100%; background: #000;
+            z-index: 10000; display: none; flex-direction: column; align-items: center; justify-content: center;
+            color: var(--danger);
+        }
+
+        .subliminal {
+            position: absolute; font-size: 12px; color: #111; opacity: 0;
+            animation: flash 8s infinite; pointer-events: none;
+        }
+        @keyframes flash {
+            99% { opacity: 0; } 100% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="entity"></div>
+    <div class="noise"></div>
+    <div id="death-screen"><h1 id="death-msg" style="text-align: center; padding: 20px;"></h1></div>
+    <canvas id="matrix"></canvas>
+
+    <div class="wrapper" id="lock-screen">
+        <div class="terminal" id="lock-box">
+            <div class="subliminal" style="top:5%; left:10%;">عبد الله.. نحن خلفك</div>
+            <div class="scary-text">تحذير: لقد أيقظت بروتوكول الميضلي... التراجع الآن مستحيل.</div>
+            <div id="puzzle-text" style="line-height: 1.8;">
+                "أسيرُ بلا أقدام، وأبكي بلا عيون.. <br>
+                كلما مشيتُ متُّ، وكلما بكيتُ أحبني الناس.. <br>
+                ما هو مصيرك؟"
+            </div>
+            <div id="timer">45</div>
+            <input type="text" id="ans-input" placeholder="اكتب الحل للنجاة...">
+            <button onclick="checkPuzzle()">تأكيد الهوية</button>
+        </div>
+    </div>
+
+    <div class="wrapper" id="main-ui" style="display: none;">
+        <div class="terminal">
+            <h2 id="typing-msg" class="scary-text"></h2>
+            <div id="ui-content" style="display: none;">
+                <input type="text" id="raw-data" placeholder="السر المراد طمسه...">
+                <input type="password" id="master-key" placeholder="مفتاح العهد">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="execute('enc')">طمس (ENCRYPT)</button>
+                    <button onclick="execute('dec')" style="border-color: #444;">استحضار (DECRYPT)</button>
+                </div>
+                <div id="status" style="margin-top:20px; font-size: 12px; color: #555;">الانتظار هو سيد الموقف...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let timeLeft = 45;
+        let active = true;
+
+        const timerInt = setInterval(() => {
+            if(!active) return;
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+            
+            if(timeLeft < 20) {
+                document.getElementById('entity').style.opacity = (20 - timeLeft) * 0.04;
+            }
+
+            if(timeLeft <= 0) {
+                clearInterval(timerInt);
+                triggerDeath();
+            }
+        }, 1000);
+
+        function triggerDeath() {
+            const ds = document.getElementById('death-screen');
+            ds.style.display = 'flex';
+            const msg = "انتهى الوقت يا عبد الله.. الميضلي لا يترك أثراً وراءه.";
+            let i = 0;
+            function typeDeath() {
+                if(i < msg.length) {
+                    document.getElementById('death-msg').innerHTML += msg.charAt(i);
+                    i++; setTimeout(typeDeath, 100);
+                }
+            }
+            typeDeath();
+        }
+
+        function checkPuzzle() {
+            const val = document.getElementById('ans-input').value.trim();
+            if(val.includes("سحاب") || val.includes("مطر") || val.includes("غمام")) {
+                active = false;
+                document.getElementById('entity').style.opacity = "0";
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('main-ui').style.display = 'flex';
+                runFinalTyping();
+            } else {
+                timeLeft -= 10; // عقاب الخطأ
+                document.body.style.background = "#200";
+                setTimeout(() => document.body.style.background = "#000", 100);
+            }
+        }
+
+        function execute(mode) {
+            const data = document.getElementById('raw-data').value;
+            const key = document.getElementById('master-key').value;
+            const status = document.getElementById('status');
+            if(!key) return;
+
+            status.innerText = "يتم الآن تشويه الواقع...";
+            setTimeout(() => {
+                try {
+                    if(mode === 'enc') {
+                        let crypted = "";
+                        for(let i=0; i<data.length; i++) {
+                            crypted += String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+                        }
+                        status.innerHTML = "النتاج المظلم:<br>" + btoa(unescape(encodeURIComponent(crypted))).split('').reverse().join('');
+                    } else {
+                        let reversed = data.split('').reverse().join('');
+                        let decoded = decodeURIComponent(escape(atob(reversed)));
+                        let original = "";
+                        for(let i=0; i<decoded.length; i++) {
+                            original += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+                        }
+                        status.innerHTML = "المستحضر:<br>" + original;
+                    }
+                } catch(e) { status.innerText = "الفراغ يرفض هذه البيانات."; }
+            }, 800);
+        }
+
+        function runFinalTyping() {
+            const msg = "مرحباً عبد الله في مجموعة الميضلي. لقد أثبتَّ وجودك.. الآن أسرارك في مأمن من ضوء الشمس.";
+            let i = 0;
+            function type() {
+                if(i < msg.length) {
+                    document.getElementById('typing-msg').innerHTML += msg.charAt(i);
+                    i++; setTimeout(type, 50);
+                } else {
+                    document.getElementById('ui-content').style.display = 'block';
+                }
+            }
+            type();
+        }
+
+        // Matrix Effect
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const drops = Array(Math.floor(canvas.width/20)).fill(1);
+        function draw() {
+            ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "#030"; ctx.font = "15px monospace";
+            drops.forEach((y, i) => {
+                const text = String.fromCharCode(0x30A0 + Math.random()*96);
+                ctx.fillText(text, i*20, y*20);
+                if(y*20 > canvas.height && Math.random() > 0.98) drops[i] = 0;
+                drops[i]++;
+            });
+        }
+        setInterval(draw, 50);
+    </script>
+</body>
+</html>
+
